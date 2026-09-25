@@ -1,6 +1,8 @@
 # Automação de Testes de API: ServeRest
 
-Testes automatizados do CRUD de usuários da API [ServeRest](https://serverest.dev), com autenticação JWT, desenvolvidos como desafio técnico.
+[![Testes de API](https://github.com/Felipee1236/Testes-API-AI-R/actions/workflows/api.yml/badge.svg)](https://github.com/Felipee1236/Testes-API-AI-R/actions/workflows/api.yml)
+
+Testes automatizados do CRUD de usuários da API [ServeRest](https://serverest.dev), com autenticação JWT, desenvolvidos como desafio técnico. Os testes rodam automaticamente no GitHub Actions, em um ServeRest local e na API pública, e os relatórios são publicados como artefato.
 
 > A coleção cria e remove os próprios dados, então pode ser executada quantas vezes for necessário.
 
@@ -12,10 +14,12 @@ Testes automatizados do CRUD de usuários da API [ServeRest](https://serverest.d
 | [Newman](https://github.com/postmanlabs/newman) | Execução da coleção pela linha de comando |
 | newman-reporter-htmlextra | Relatório HTML interativo |
 | JUnit (reporter nativo do Newman) | Relatório padrão para ferramentas de CI |
+| GitHub Actions | Integração contínua |
+| [ServeRest em Docker](https://hub.docker.com/r/paulogoncalvesbh/serverest) | API local e isolada para a pipeline |
 
 ## Pré-requisitos
 
-- [Node.js](https://nodejs.org) 22 ou superior (a versão recomendada, 24 LTS, está no `.nvmrc`)
+- [Node.js](https://nodejs.org) 22 ou superior (a pipeline usa a versão do `.nvmrc`, 24 LTS)
 - Docker (opcional), para subir o ServeRest local em container
 - Postman (opcional), para visualizar e editar a coleção
 
@@ -55,6 +59,8 @@ collections/
 environments/
 ├── serverest.postman_environment.json           # URL da API pública
 └── local.postman_environment.json               # URL do ServeRest local
+.github/
+└── workflows/api.yml                            # pipeline de CI
 reports/                                         # relatórios gerados (fora do Git)
 ```
 
@@ -107,6 +113,30 @@ Não existe usuário fixo. Cada execução cadastra os próprios usuários, com 
 ### Dados sensíveis
 
 A única configuração é a URL base, que não é sensível. Credenciais de teste são geradas em tempo de execução e não ficam em nenhum arquivo versionado.
+
+## Integração contínua
+
+A pipeline fica em `.github/workflows/api.yml` e roda a cada `push`, em pull requests para a `main` e manualmente, pela aba **Actions**. Uma matriz executa os testes nos dois ambientes, em paralelo e de forma independente:
+
+| Job | Ambiente |
+| --- | --- |
+| Testes de API (local) | ServeRest 3.2.2 em container Docker, iniciado pela própria pipeline |
+| Testes de API (serverest) | API pública, `https://serverest.dev` |
+
+Etapas de cada job:
+
+1. Instala o Node.js da versão do `.nvmrc` e as dependências com `npm ci`
+2. No ambiente local, sobe o ServeRest em container e aguarda a API responder
+3. Executa a coleção com o Newman: qualquer verificação que falhe reprova o job
+4. Publica os relatórios HTML e JUnit como artefato, **mesmo quando algum teste falha**
+
+**Onde ver o relatório:** aba **Actions** → execução desejada → seção **Artifacts** → `relatorios-api-local` ou `relatorios-api-serverest`. Basta extrair e abrir o `relatorio.html` no navegador.
+
+Boas práticas aplicadas:
+
+- permissão mínima para o token da pipeline (`contents: read`)
+- limite de 10 minutos por job
+- cancelamento automático de execuções antigas da mesma branch
 
 ## Autor
 

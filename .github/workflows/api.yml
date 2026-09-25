@@ -1,0 +1,58 @@
+name: Testes de API
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: Testes de API (${{ matrix.ambiente }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # local: ServeRest em container, isolado e sem dependência externa
+        # serverest: API pública sugerida no desafio (https://serverest.dev)
+        ambiente: [local, serverest]
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v7
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Subir o ServeRest local
+        if: matrix.ambiente == 'local'
+        run: |
+          docker run --detach --name serverest --publish 3000:3000 paulogoncalvesbh/serverest:3.2.2
+          curl --silent --show-error --fail --retry 30 --retry-delay 1 --retry-all-errors --output /dev/null http://localhost:3000/usuarios
+
+      - name: Executar testes
+        run: npm run test:${{ matrix.ambiente }}
+
+      - name: Publicar relatórios como artefato
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: relatorios-api-${{ matrix.ambiente }}
+          path: reports/
+          if-no-files-found: error
+          retention-days: 14
