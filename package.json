@@ -1,0 +1,13 @@
+{
+  "name": "automacao-api-serverest",
+  "version": "1.0.0",
+  "description": "Testes automatizados do CRUD de usuários da API ServeRest com Postman e Newman",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "newman": "^6.2.2",
+    "newman-reporter-htmlextra": "^1.23.1"
+  }
+}
