@@ -2,9 +2,9 @@
 
 [![Testes de API](https://github.com/Felipee1236/Testes-API-AI-R/actions/workflows/api.yml/badge.svg)](https://github.com/Felipee1236/Testes-API-AI-R/actions/workflows/api.yml)
 
-Testes automatizados do CRUD de usuários da API [ServeRest](https://serverest.dev), com autenticação JWT, desenvolvidos como desafio técnico. Os testes rodam automaticamente no GitHub Actions, em um ServeRest local e na API pública, e os relatórios são publicados como artefato.
+Testes automatizados do CRUD de usuários da API [ServeRest](https://serverest.dev), com autenticação JWT, desenvolvidos como desafio técnico. Os 5 endpoints de usuários são cobertos em cenários de sucesso e de falha, incluindo todos os status code documentados pela API. Os testes rodam automaticamente no GitHub Actions, em um ServeRest local e na API pública, e os relatórios são publicados como artefato.
 
-> A coleção cria e remove os próprios dados, então pode ser executada quantas vezes for necessário.
+> A coleção tem **39 casos de teste** (44 requisições, contando preparação e limpeza) e **217 verificações**. Ela cria e remove os próprios dados, então pode ser executada quantas vezes for necessário.
 
 ## Stack
 
@@ -66,7 +66,7 @@ reports/                                         # relatórios gerados (fora do 
 
 ## Casos de teste
 
-As pastas da coleção seguem o ciclo de vida do usuário: cadastro, consulta, alteração, autenticação e limpeza. Além das verificações de cada caso, **todas** as requisições verificam que o tempo de resposta fica abaixo de 3 segundos e que a resposta é JSON.
+As pastas da coleção seguem o ciclo de vida do usuário: cadastro, consulta, alteração, autenticação, exclusão e limpeza. Além das verificações de cada caso, **todas** as requisições verificam que o tempo de resposta fica abaixo de 3 segundos e que a resposta é JSON.
 
 ### `POST /usuarios`: cadastro
 
@@ -129,7 +129,50 @@ As pastas da coleção seguem o ciclo de vida do usuário: cadastro, consulta, a
 | CT35 | Usuário comum em rota exclusiva de administrador | 403, "Rota exclusiva para administradores" |
 | CT36 | Administrador em rota protegida | 201, produto cadastrado |
 
-A pasta **Limpeza** remove, ao final, o produto, o usuário comum, o usuário criado pelo PUT e o administrador. Ela também tem verificações, para que um resíduo na API nunca passe despercebido.
+### `DELETE /usuarios/{id}`: exclusão
+
+| ID | Cenário | Resultado esperado |
+| --- | --- | --- |
+| CT37 | Excluir usuário com carrinho cadastrado | 400 com o id do carrinho, e o usuário continua cadastrado |
+| CT38 | Excluir usuário existente | 200 e nova consulta confirmando que ele não existe mais |
+| CT39 | Excluir de novo o mesmo id | 200, "Nenhum registro excluído" |
+
+Duas requisições de **preparação** (cadastrar e cancelar o carrinho do usuário comum) e a pasta **Limpeza** (produto, usuário criado pelo PUT e administrador) completam o fluxo. Elas também têm verificações, para que um resíduo na API nunca passe despercebido.
+
+### O que as verificações cobrem
+
+Os testes não se limitam ao status HTTP:
+
+- **Mensagens:** o texto exato de cada mensagem de sucesso e de erro, campo a campo nas validações
+- **Contrato:** listagem e busca por id validadas com JSON Schema, sem aceitar campos além dos documentados
+- **Persistência:** após cadastrar pelo PUT, alterar ou excluir, uma nova consulta confirma o efeito
+- **Segurança:** integridade do JWT, perfil de acesso (401 × 403), mass assignment e mensagens de login que não revelam e-mails cadastrados
+
+## Cobertura
+
+### Requisitos do desafio
+
+| Requisito | Como é atendido |
+| --- | --- |
+| CRUD de usuários nos 5 endpoints | CT01–CT27 e CT37–CT39 |
+| Autenticação via JWT | CT28–CT36 (veja [Autenticação JWT](#autenticação-jwt)) |
+| Limite de 100 requisições por minuto | Execução com no máximo 100 requisições por minuto e falha explícita em caso de HTTP 429 (veja [limite de requisições](#limite-de-100-requisições-por-minuto)) |
+| Campos obrigatórios `nome`, `email`, `password` e `administrador` (string) | Ausentes, em branco, com tipo inválido e com valor inválido: CT04–CT08, CT24 e CT25 |
+| Pipeline de CI com relatórios como artefato | GitHub Actions, com relatórios HTML e JUnit publicados como artefato (veja [Integração contínua](#integração-contínua)) |
+| Documentação | Este README |
+
+### Status code documentados pela API
+
+Todos os status code que a [documentação do ServeRest](https://serverest.dev) define para as rotas de usuários e de login são verificados:
+
+| Endpoint | Status documentados | Casos |
+| --- | --- | --- |
+| `POST /usuarios` | 201, 400 | CT01–CT10 |
+| `GET /usuarios` | 200 (e 400, não documentado, para filtros inválidos) | CT11–CT18 |
+| `GET /usuarios/{id}` | 200, 400 | CT19–CT21 |
+| `PUT /usuarios/{id}` | 200, 201, 400 | CT22–CT27 |
+| `DELETE /usuarios/{id}` | 200 ("Registro excluído com sucesso" e "Nenhum registro excluído"), 400 | CT37–CT39 |
+| `POST /login` | 200, 401 (e 400 para corpo inválido) | CT28–CT32 |
 
 ## Decisões técnicas
 
@@ -149,7 +192,7 @@ O token adulterado mantém cabeçalho e assinatura originais e só prorroga a ex
 
 ### Limite de 100 requisições por minuto
 
-O Newman espera **600 ms entre requisições** (`--delay-request 600`): como 60.000 ms ÷ 600 ms = 100, o ritmo nunca passa de 100 requisições por minuto, mesmo que a coleção cresça.
+Uma execução completa faz 48 chamadas HTTP: as 44 requisições da coleção e 4 consultas de verificação. O Newman espera **600 ms entre requisições** (`--delay-request 600`): como 60.000 ms ÷ 600 ms = 100, o ritmo nunca passa de 100 requisições por minuto, mesmo que a coleção cresça. A execução leva cerca de 30 segundos.
 
 Se a API responder **HTTP 429** (limite excedido), uma verificação da coleção falha com uma mensagem explicando o motivo, em vez de deixar só uma sequência de falhas sem causa aparente.
 

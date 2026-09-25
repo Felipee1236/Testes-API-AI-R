@@ -1864,6 +1864,215 @@
       ]
     },
     {
+      "name": "DELETE /usuarios/{id}",
+      "description": "Exclusão de usuário, incluindo a regra que impede excluir usuário com carrinho.",
+      "item": [
+        {
+          "name": "Preparação: cadastrar carrinho para o usuário comum",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{user2Token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/carrinhos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "carrinhos"
+              ]
+            },
+            "description": "Prepara a regra de negócio do DELETE: usuário com carrinho não pode ser excluído.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produtos\": [\n    {\n      \"idProduto\": \"{{productId}}\",\n      \"quantidade\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201))",
+                  "pm.test('Mensagem de cadastro realizado', () => pm.expect(body.message).to.eql('Cadastro realizado com sucesso'))",
+                  "pm.test('Retorna _id do carrinho com 16 caracteres alfanuméricos', () => pm.expect(body._id).to.match(/^[A-Za-z0-9]{16}$/))",
+                  "",
+                  "pm.collectionVariables.set('cartId', body._id)"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Não excluir usuário com carrinho cadastrado",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/{{user2Id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{user2Id}}"
+              ]
+            },
+            "description": "Regra documentada da API: retorna 400 com o id do carrinho, e o usuário continua cadastrado."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 400', () => pm.response.to.have.status(400))",
+                  "pm.test('Informa que o usuário possui carrinho', () => pm.expect(body.message).to.eql('Não é permitido excluir usuário com carrinho cadastrado'))",
+                  "pm.test('Retorna o id do carrinho que impede a exclusão', () => pm.expect(body.idCarrinho).to.eql(pm.collectionVariables.get('cartId')))",
+                  "",
+                  "// Consulta o usuário para confirmar que ele não foi excluído",
+                  "pm.sendRequest(`${pm.variables.get('baseUrl')}/usuarios/${pm.collectionVariables.get('user2Id')}`, (erro, resposta) => {",
+                  "  pm.test('Usuário continua cadastrado', () => {",
+                  "    if (erro) throw erro",
+                  "    pm.expect(resposta.code).to.eql(200)",
+                  "  })",
+                  "})"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Preparação: cancelar a compra do usuário comum",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{user2Token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/carrinhos/cancelar-compra",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "carrinhos",
+                "cancelar-compra"
+              ]
+            },
+            "description": "Remove o carrinho (devolvendo o produto ao estoque) para que o usuário possa ser excluído."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200))",
+                  "pm.test('Informa que o carrinho foi excluído', () => pm.expect(body.message).to.eql('Registro excluído com sucesso. Estoque dos produtos reabastecido'))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Excluir usuário existente",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/{{user2Id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{user2Id}}"
+              ]
+            },
+            "description": "Exclui e confirma, com uma nova consulta, que o usuário não existe mais."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200))",
+                  "pm.test('Mensagem de exclusão realizada', () => pm.expect(body.message).to.eql('Registro excluído com sucesso'))",
+                  "",
+                  "// Consulta o usuário para confirmar que ele foi excluído",
+                  "pm.sendRequest(`${pm.variables.get('baseUrl')}/usuarios/${pm.collectionVariables.get('user2Id')}`, (erro, resposta) => {",
+                  "  pm.test('Usuário não é mais encontrado', () => {",
+                  "    if (erro) throw erro",
+                  "    pm.expect(resposta.code).to.eql(400)",
+                  "    pm.expect(resposta.json().message).to.eql('Usuário não encontrado')",
+                  "  })",
+                  "})"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Excluir usuário inexistente não remove nenhum registro",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/{{user2Id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{user2Id}}"
+              ]
+            },
+            "description": "Repetir a exclusão do mesmo id não deve afetar nada."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200))",
+                  "pm.test('Informa que nenhum registro foi excluído', () => pm.expect(body.message).to.eql('Nenhum registro excluído'))"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Limpeza",
       "description": "Remove tudo o que foi criado durante a execução, mesmo que algum teste anterior tenha falhado.",
       "item": [
@@ -1888,36 +2097,6 @@
               ]
             },
             "description": "Produto cadastrado no teste de rota protegida. Precisa do token do administrador, por isso é excluído antes dele."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status 200', () => pm.response.to.have.status(200))",
-                  "pm.test('Registro excluído', () => pm.expect(pm.response.json().message).to.eql('Registro excluído com sucesso'))"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Excluir usuário comum",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/usuarios/{{user2Id}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "usuarios",
-                "{{user2Id}}"
-              ]
-            },
-            "description": "Usuário não administrador cadastrado na pasta POST /usuarios."
           },
           "event": [
             {
@@ -2050,6 +2229,10 @@
     },
     {
       "key": "productId",
+      "value": ""
+    },
+    {
+      "key": "cartId",
       "value": ""
     },
     {
