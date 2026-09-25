@@ -1344,9 +1344,564 @@
       ]
     },
     {
+      "name": "Autenticação JWT",
+      "description": "Login, validação do token JWT e controle de acesso em rota protegida (cadastro de produtos, exclusivo para administradores).",
+      "item": [
+        {
+          "name": "Fazer login com credenciais válidas",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "login"
+              ]
+            },
+            "description": "Login do administrador. Valida o JWT: formato Bearer, algoritmo de assinatura, e-mail do usuário no payload e validade de 600 segundos, como documentado pela API.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{userPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "const cryptoJs = require('crypto-js')",
+                  "",
+                  "// Decodifica uma parte do JWT (Base64URL) para JSON",
+                  "const decodificar = parte => {",
+                  "  const base64 = parte.replace(/-/g, '+').replace(/_/g, '/')",
+                  "  const comPadding = base64 + '='.repeat((4 - (base64.length % 4)) % 4)",
+                  "  return JSON.parse(cryptoJs.enc.Base64.parse(comPadding).toString(cryptoJs.enc.Utf8))",
+                  "}",
+                  "",
+                  "const partes = (body.authorization || '').replace('Bearer ', '').split('.')",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200))",
+                  "pm.test('Mensagem de login realizado', () => pm.expect(body.message).to.eql('Login realizado com sucesso'))",
+                  "pm.test('Token JWT no formato Bearer, com cabeçalho, payload e assinatura', () => {",
+                  "  pm.expect(body.authorization).to.match(/^Bearer [\\w-]+\\.[\\w-]+\\.[\\w-]+$/)",
+                  "})",
+                  "pm.test('Token assinado com HS256', () => pm.expect(decodificar(partes[0]).alg).to.eql('HS256'))",
+                  "pm.test('Payload do token identifica o usuário', () => {",
+                  "  pm.expect(decodificar(partes[1]).email).to.eql(pm.collectionVariables.get('userEmail'))",
+                  "})",
+                  "pm.test('Token expira em 600 segundos', () => {",
+                  "  const payload = decodificar(partes[1])",
+                  "  pm.expect(payload.exp - payload.iat).to.eql(600)",
+                  "})",
+                  "",
+                  "pm.collectionVariables.set('token', body.authorization)"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Não fazer login com senha incorreta",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "login"
+              ]
+            },
+            "description": "Credenciais inválidas devem retornar 401 sem token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"SenhaErrada@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 401', () => pm.response.to.have.status(401))",
+                  "pm.test('Informa credenciais inválidas', () => pm.expect(body.message).to.eql('Email e/ou senha inválidos'))",
+                  "pm.test('Não retorna token', () => pm.expect(body).to.not.have.property('authorization'))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Não fazer login com e-mail não cadastrado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "login"
+              ]
+            },
+            "description": "A mensagem deve ser a mesma da senha incorreta, para não revelar quais e-mails estão cadastrados.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{emailNaoCadastrado}}\",\n  \"password\": \"{{userPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set('emailNaoCadastrado', `qa.nao.cadastrado.${Date.now()}@example.com`)"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 401', () => pm.response.to.have.status(401))",
+                  "pm.test('Mesma mensagem da senha incorreta', () => pm.expect(body.message).to.eql('Email e/ou senha inválidos'))",
+                  "pm.test('Não retorna token', () => pm.expect(body).to.not.have.property('authorization'))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Não fazer login sem os campos obrigatórios",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "login"
+              ]
+            },
+            "description": "Corpo vazio no login.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 400', () => pm.response.to.have.status(400))",
+                  "pm.test('Informa que email é obrigatório', () => pm.expect(body.email).to.eql('email é obrigatório'))",
+                  "pm.test('Informa que password é obrigatório', () => pm.expect(body.password).to.eql('password é obrigatório'))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fazer login com usuário comum",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "login"
+              ]
+            },
+            "description": "Login do usuário não administrador. O token é usado no teste de permissão e na criação do carrinho.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{user2Email}}\",\n  \"password\": \"{{user2Password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200))",
+                  "pm.test('Mensagem de login realizado', () => pm.expect(body.message).to.eql('Login realizado com sucesso'))",
+                  "pm.test('Retorna token JWT no formato Bearer', () => pm.expect(body.authorization).to.match(/^Bearer [\\w-]+\\.[\\w-]+\\.[\\w-]+$/))",
+                  "",
+                  "pm.collectionVariables.set('user2Token', body.authorization)"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bloquear rota protegida sem token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/produtos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produtos"
+              ]
+            },
+            "description": "Sem o header Authorization, a rota protegida deve recusar a requisição.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"{{nomeProduto}}\",\n  \"preco\": 100,\n  \"descricao\": \"Produto de teste automatizado\",\n  \"quantidade\": 10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set('nomeProduto', `Produto QA ${Date.now()}`)"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 401', () => pm.response.to.have.status(401))",
+                  "pm.test('Informa token ausente ou inválido', () => pm.expect(body.message).to.eql('Token de acesso ausente, inválido, expirado ou usuário do token não existe mais'))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bloquear rota protegida com token adulterado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{tokenAdulterado}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/produtos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produtos"
+              ]
+            },
+            "description": "Prorroga a expiração no payload do token sem assinar de novo, simulando uma fraude. A API deve validar a assinatura e recusar.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"{{nomeProduto}}\",\n  \"preco\": 100,\n  \"descricao\": \"Produto de teste automatizado\",\n  \"quantidade\": 10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const cryptoJs = require('crypto-js')",
+                  "",
+                  "// Decodifica uma parte do JWT (Base64URL) para JSON",
+                  "const decodificar = parte => {",
+                  "  const base64 = parte.replace(/-/g, '+').replace(/_/g, '/')",
+                  "  const comPadding = base64 + '='.repeat((4 - (base64.length % 4)) % 4)",
+                  "  return JSON.parse(cryptoJs.enc.Base64.parse(comPadding).toString(cryptoJs.enc.Utf8))",
+                  "}",
+                  "const codificar = json => cryptoJs.enc.Base64.stringify(cryptoJs.enc.Utf8.parse(JSON.stringify(json)))",
+                  "  .replace(/=+$/, '')",
+                  "  .replace(/\\+/g, '-')",
+                  "  .replace(/\\//g, '_')",
+                  "",
+                  "// Mantém cabeçalho e assinatura originais e altera só o payload (+1 dia de validade)",
+                  "const [cabecalho, payload, assinatura] = pm.collectionVariables.get('token').replace('Bearer ', '').split('.')",
+                  "const dados = decodificar(payload)",
+                  "dados.exp += 24 * 60 * 60",
+                  "",
+                  "pm.variables.set('tokenAdulterado', `Bearer ${cabecalho}.${codificar(dados)}.${assinatura}`)",
+                  "",
+                  "pm.variables.set('nomeProduto', `Produto QA ${Date.now()}`)"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 401', () => pm.response.to.have.status(401))",
+                  "pm.test('Informa token ausente ou inválido', () => pm.expect(body.message).to.eql('Token de acesso ausente, inválido, expirado ou usuário do token não existe mais'))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bloquear rota de administrador para usuário comum",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{user2Token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/produtos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produtos"
+              ]
+            },
+            "description": "Autorização: um token válido de usuário não administrador não pode cadastrar produtos.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"{{nomeProduto}}\",\n  \"preco\": 100,\n  \"descricao\": \"Produto de teste automatizado\",\n  \"quantidade\": 10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set('nomeProduto', `Produto QA ${Date.now()}`)"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 403', () => pm.response.to.have.status(403))",
+                  "pm.test('Informa que a rota é exclusiva para administradores', () => pm.expect(body.message).to.eql('Rota exclusiva para administradores'))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Acessar rota protegida com token de administrador",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/produtos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produtos"
+              ]
+            },
+            "description": "Usa o token do login do administrador para cadastrar um produto. O produto é usado no carrinho e removido na limpeza.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"{{nomeProduto}}\",\n  \"preco\": 100,\n  \"descricao\": \"Produto de teste automatizado\",\n  \"quantidade\": 10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set('nomeProduto', `Produto QA ${Date.now()}`)"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201))",
+                  "pm.test('Mensagem de cadastro realizado', () => pm.expect(body.message).to.eql('Cadastro realizado com sucesso'))",
+                  "pm.test('Retorna _id do produto com 16 caracteres alfanuméricos', () => pm.expect(body._id).to.match(/^[A-Za-z0-9]{16}$/))",
+                  "",
+                  "pm.collectionVariables.set('productId', body._id)"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Limpeza",
       "description": "Remove tudo o que foi criado durante a execução, mesmo que algum teste anterior tenha falhado.",
       "item": [
+        {
+          "name": "Excluir produto criado",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/produtos/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "produtos",
+                "{{productId}}"
+              ]
+            },
+            "description": "Produto cadastrado no teste de rota protegida. Precisa do token do administrador, por isso é excluído antes dele."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200))",
+                  "pm.test('Registro excluído', () => pm.expect(pm.response.json().message).to.eql('Registro excluído com sucesso'))"
+                ]
+              }
+            }
+          ]
+        },
         {
           "name": "Excluir usuário comum",
           "request": {
@@ -1483,6 +2038,18 @@
     },
     {
       "key": "upsertUserEmail",
+      "value": ""
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "user2Token",
+      "value": ""
+    },
+    {
+      "key": "productId",
       "value": ""
     },
     {

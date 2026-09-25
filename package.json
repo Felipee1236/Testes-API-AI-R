@@ -10,7 +10,7 @@
     "test": "npm run test:serverest",
     "test:serverest": "npm run collection -- -e environments/serverest.postman_environment.json",
     "test:local": "npm run collection -- -e environments/local.postman_environment.json",
-    "collection": "newman run collections/serverest-usuarios.postman_collection.json --delay-request 600 --timeout-request 10000 -r cli,htmlextra,junit --reporter-htmlextra-export reports/relatorio.html --reporter-htmlextra-title \"ServeRest - Usuários\" --reporter-junit-export reports/junit.xml",
+    "collection": "newman run collections/serverest-usuarios.postman_collection.json --delay-request 600 --timeout-request 10000 -r cli,htmlextra,junit --reporter-htmlextra-export reports/relatorio.html --reporter-htmlextra-title \"ServeRest - Usuários\" --reporter-htmlextra-skipHeaders Authorization --reporter-htmlextra-hideResponseBody \"Fazer login com credenciais válidas,Fazer login com usuário comum\" --reporter-junit-export reports/junit.xml",
     "serverest": "npx --yes serverest@3.2.2 --nodoc"
   },
   "devDependencies": {

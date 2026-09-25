@@ -66,7 +66,7 @@ reports/                                         # relatórios gerados (fora do 
 
 ## Casos de teste
 
-As pastas da coleção seguem o ciclo de vida do usuário: cadastro, consulta, alteração e limpeza. Além das verificações de cada caso, **todas** as requisições verificam que o tempo de resposta fica abaixo de 3 segundos e que a resposta é JSON.
+As pastas da coleção seguem o ciclo de vida do usuário: cadastro, consulta, alteração, autenticação e limpeza. Além das verificações de cada caso, **todas** as requisições verificam que o tempo de resposta fica abaixo de 3 segundos e que a resposta é JSON.
 
 ### `POST /usuarios`: cadastro
 
@@ -115,13 +115,37 @@ As pastas da coleção seguem o ciclo de vida do usuário: cadastro, consulta, a
 | CT26 | Id inexistente | 201: a API cadastra um novo usuário, confirmado por consulta |
 | CT27 | Id inexistente com e-mail já cadastrado | 400, "Este email já está sendo usado" |
 
-A pasta **Limpeza** remove, ao final, o usuário comum, o usuário criado pelo PUT e o administrador. Ela também tem verificações, para que um resíduo na API nunca passe despercebido.
+### Autenticação JWT: login e rota protegida
+
+| ID | Cenário | Resultado esperado |
+| --- | --- | --- |
+| CT28 | Login do administrador | 200 e JWT válido: formato `Bearer`, algoritmo HS256, e-mail no payload e validade de 600 segundos |
+| CT29 | Senha incorreta | 401, "Email e/ou senha inválidos", sem token |
+| CT30 | E-mail não cadastrado | 401 com a **mesma** mensagem da senha incorreta, sem revelar quais e-mails existem |
+| CT31 | Login com corpo vazio | 400, mensagem para e-mail e senha |
+| CT32 | Login do usuário comum | 200 e token no formato `Bearer` |
+| CT33 | Rota protegida sem token | 401 |
+| CT34 | Rota protegida com token adulterado (payload alterado sem nova assinatura) | 401 |
+| CT35 | Usuário comum em rota exclusiva de administrador | 403, "Rota exclusiva para administradores" |
+| CT36 | Administrador em rota protegida | 201, produto cadastrado |
+
+A pasta **Limpeza** remove, ao final, o produto, o usuário comum, o usuário criado pelo PUT e o administrador. Ela também tem verificações, para que um resíduo na API nunca passe despercebido.
 
 ## Decisões técnicas
 
 ### Endpoints `/usuarios` em vez de `/users`
 
 O enunciado descreve os endpoints como `/users` e sugere a API ServeRest, que expõe o mesmo CRUD em português (`/usuarios`), com os mesmos campos obrigatórios: `nome`, `email`, `password` e `administrador` (string). Os testes seguem a API real.
+
+### Autenticação JWT
+
+No ServeRest, as rotas de usuários são públicas; o token JWT é exigido nas rotas de administração, como o cadastro de produtos. Para cobrir o requisito de autenticação, a pasta **Autenticação JWT**:
+
+1. faz login com o administrador e com o usuário comum criados na execução
+2. valida o token: prefixo `Bearer`, três partes, algoritmo HS256, e-mail do usuário no payload e validade de 600 segundos, como documentado pela API
+3. comprova que a rota protegida recusa requisição sem token e com token adulterado (401), recusa usuário sem perfil de administrador (403) e aceita o administrador (201)
+
+O token adulterado mantém cabeçalho e assinatura originais e só prorroga a expiração no payload. Se a API não validasse a assinatura, esse token seria aceito, então o teste prova que a validação existe.
 
 ### Limite de 100 requisições por minuto
 
@@ -140,7 +164,7 @@ Os testes rodam em dois ambientes, definidos em `environments/`, e só a variáv
 
 ### Massa de dados independente
 
-Não existe usuário fixo. Cada execução cadastra os próprios usuários, com e-mail único no domínio reservado `example.com` ([RFC 2606](https://www.rfc-editor.org/rfc/rfc2606)), e a pasta **Limpeza** remove tudo o que foi criado. O Newman continua a execução mesmo quando um teste falha, então a limpeza sempre roda. Dados usados em uma única requisição ficam em variáveis locais; só o que é compartilhado entre requisições (ids e credenciais) fica em variáveis da coleção.
+Não existe usuário fixo. Cada execução cadastra os próprios usuários, com e-mail único no domínio reservado `example.com` ([RFC 2606](https://www.rfc-editor.org/rfc/rfc2606)), e a pasta **Limpeza** remove tudo o que foi criado. O Newman continua a execução mesmo quando um teste falha, então a limpeza sempre roda. Dados usados em uma única requisição ficam em variáveis locais; só o que é compartilhado entre requisições (ids, credenciais e tokens) fica em variáveis da coleção.
 
 ### Comportamento de "upsert" no PUT
 
@@ -152,7 +176,9 @@ O schema do usuário fica em uma variável da coleção (`schemaUsuario`) e é r
 
 ### Dados sensíveis
 
-A única configuração é a URL base, que não é sensível. Credenciais de teste são geradas em tempo de execução e não ficam em nenhum arquivo versionado.
+- A única configuração é a URL base, que não é sensível. Credenciais de teste são geradas em tempo de execução e não ficam em nenhum arquivo versionado.
+- O relatório HTML oculta o header `Authorization` e a resposta dos logins, para que nenhum token seja publicado no artefato da pipeline.
+- Os tokens deixam de valer ao fim da execução, porque os usuários são excluídos.
 
 ## Integração contínua
 
