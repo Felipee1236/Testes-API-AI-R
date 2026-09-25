@@ -895,6 +895,117 @@
       ]
     },
     {
+      "name": "GET /usuarios/{id}",
+      "description": "Busca de usuário por id.",
+      "item": [
+        {
+          "name": "Buscar usuário existente por id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{userId}}"
+              ]
+            },
+            "description": "Valida o contrato e compara todos os campos retornados com os dados cadastrados."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200))",
+                  "pm.test('Segue o contrato de usuário', () => pm.response.to.have.jsonSchema(JSON.parse(pm.collectionVariables.get('schemaUsuario'))))",
+                  "pm.test('Retorna os dados cadastrados', () => {",
+                  "  pm.expect(body).to.eql({",
+                  "    nome: pm.collectionVariables.get('userName'),",
+                  "    email: pm.collectionVariables.get('userEmail'),",
+                  "    password: pm.collectionVariables.get('userPassword'),",
+                  "    administrador: 'true',",
+                  "    _id: pm.collectionVariables.get('userId'),",
+                  "  })",
+                  "})"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Não encontrar usuário com id inexistente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/aaaaaaaaaaaaaaaa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "aaaaaaaaaaaaaaaa"
+              ]
+            },
+            "description": "Id em formato válido (16 caracteres), mas que não existe."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 400', () => pm.response.to.have.status(400))",
+                  "pm.test('Informa que o usuário não foi encontrado', () => pm.expect(body.message).to.eql('Usuário não encontrado'))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rejeitar id em formato inválido",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/123",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "123"
+              ]
+            },
+            "description": "Validação de formato do id antes de consultar a base."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 400', () => pm.response.to.have.status(400))",
+                  "pm.test('Informa o formato esperado do id', () => pm.expect(body.id).to.eql('id deve ter exatamente 16 caracteres alfanuméricos'))"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Limpeza",
       "description": "Remove tudo o que foi criado durante a execução, mesmo que algum teste anterior tenha falhado.",
       "item": [

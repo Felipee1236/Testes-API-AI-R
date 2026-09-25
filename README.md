@@ -96,6 +96,14 @@ As pastas da coleção seguem o ciclo de vida do usuário: cadastro, consulta e 
 | CT17 | Filtros com valores inválidos (e-mail e administrador) | 400, mensagem para cada parâmetro |
 | CT18 | Parâmetro de filtro não previsto | 400, "cpf não é permitido" |
 
+### `GET /usuarios/{id}`: busca por id
+
+| ID | Cenário | Resultado esperado |
+| --- | --- | --- |
+| CT19 | Usuário existente | 200, contrato validado e todos os campos iguais aos cadastrados |
+| CT20 | Id inexistente, em formato válido | 400, "Usuário não encontrado" |
+| CT21 | Id fora do formato de 16 caracteres alfanuméricos | 400, mensagem com o formato esperado |
+
 A pasta **Limpeza** remove, ao final, o usuário comum e o administrador. Ela também tem verificações, para que um resíduo na API nunca passe despercebido.
 
 ## Decisões técnicas
@@ -125,7 +133,7 @@ Não existe usuário fixo. Cada execução cadastra os próprios usuários, com 
 
 ### Contrato com JSON Schema
 
-O schema do usuário fica em uma variável da coleção (`schemaUsuario`) e é usado na validação da listagem. Ele não aceita campos além dos documentados (`additionalProperties: false`), para que um campo novo na resposta, como um dado sensível exposto por engano, seja detectado.
+O schema do usuário fica em uma variável da coleção (`schemaUsuario`) e é reutilizado na listagem e na busca por id. Ele não aceita campos além dos documentados (`additionalProperties: false`), para que um campo novo na resposta, como um dado sensível exposto por engano, seja detectado.
 
 ### Dados sensíveis
 
