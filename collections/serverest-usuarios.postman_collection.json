@@ -1,0 +1,642 @@
+{
+  "info": {
+    "_postman_id": "7318d346-bd93-472e-87ee-bb56a4d8dce6",
+    "name": "ServeRest - Usuários",
+    "description": "Testes automatizados do CRUD de usuários da API ServeRest, com autenticação JWT. Execute a coleção inteira, na ordem: cada pasta prepara os dados usados pela seguinte e a pasta Limpeza remove tudo o que foi criado.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Verificações aplicadas a todas as requisições da coleção",
+          "if (pm.response.code === 429) {",
+          "  pm.test('Limite de requisições da API respeitado', () => {",
+          "    throw new Error('HTTP 429: a API recusou a requisição por excesso de chamadas. Aguarde um minuto e execute novamente.')",
+          "  })",
+          "}",
+          "",
+          "pm.test('Tempo de resposta abaixo de 3 segundos', () => pm.expect(pm.response.responseTime).to.be.below(3000))",
+          "pm.test('Resposta em JSON', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json'))"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "POST /usuarios",
+      "description": "Cadastro de usuários: sucesso e validações de campos e regras de negócio.",
+      "item": [
+        {
+          "name": "Cadastrar usuário administrador com dados válidos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ]
+            },
+            "description": "Cria o usuário administrador usado no restante da coleção. Nome, e-mail e senha são únicos a cada execução.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"{{userName}}\",\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{userPassword}}\",\n  \"administrador\": \"true\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const sufixo = `${Date.now()}${Math.floor(Math.random() * 1000)}`",
+                  "pm.collectionVariables.set('userName', `QA Admin ${sufixo}`)",
+                  "pm.collectionVariables.set('userEmail', `qa.admin.${sufixo}@example.com`)",
+                  "pm.collectionVariables.set('userPassword', `Senha@${sufixo}`)"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201))",
+                  "pm.test('Mensagem de cadastro realizado', () => pm.expect(body.message).to.eql('Cadastro realizado com sucesso'))",
+                  "pm.test('Retorna _id com 16 caracteres alfanuméricos', () => pm.expect(body._id).to.match(/^[A-Za-z0-9]{16}$/))",
+                  "",
+                  "pm.collectionVariables.set('userId', body._id)"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cadastrar usuário comum (não administrador) com dados válidos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ]
+            },
+            "description": "Cobre o outro valor aceito em administrador ('false'). Esse usuário é usado nos testes de e-mail duplicado, de permissão e de carrinho.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"{{user2Name}}\",\n  \"email\": \"{{user2Email}}\",\n  \"password\": \"{{user2Password}}\",\n  \"administrador\": \"false\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const sufixo = `${Date.now()}${Math.floor(Math.random() * 1000)}`",
+                  "pm.collectionVariables.set('user2Name', `QA Comum ${sufixo}`)",
+                  "pm.collectionVariables.set('user2Email', `qa.comum.${sufixo}@example.com`)",
+                  "pm.collectionVariables.set('user2Password', `Senha@${sufixo}`)"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201))",
+                  "pm.test('Mensagem de cadastro realizado', () => pm.expect(body.message).to.eql('Cadastro realizado com sucesso'))",
+                  "pm.test('Retorna _id com 16 caracteres alfanuméricos', () => pm.expect(body._id).to.match(/^[A-Za-z0-9]{16}$/))",
+                  "",
+                  "pm.collectionVariables.set('user2Id', body._id)"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Não cadastrar usuário com e-mail já existente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ]
+            },
+            "description": "Regra de negócio: o e-mail é único no sistema.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Outro Nome\",\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"OutraSenha@1\",\n  \"administrador\": \"false\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 400', () => pm.response.to.have.status(400))",
+                  "pm.test('Informa que o e-mail já está em uso', () => pm.expect(body.message).to.eql('Este email já está sendo usado'))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Não cadastrar usuário sem os campos obrigatórios",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ]
+            },
+            "description": "Envia corpo vazio e valida a mensagem de cada um dos 4 campos obrigatórios.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 400', () => pm.response.to.have.status(400))",
+                  "pm.test('Informa que nome é obrigatório', () => pm.expect(body.nome).to.eql('nome é obrigatório'))",
+                  "pm.test('Informa que email é obrigatório', () => pm.expect(body.email).to.eql('email é obrigatório'))",
+                  "pm.test('Informa que password é obrigatório', () => pm.expect(body.password).to.eql('password é obrigatório'))",
+                  "pm.test('Informa que administrador é obrigatório', () => pm.expect(body.administrador).to.eql('administrador é obrigatório'))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Não cadastrar usuário com campos obrigatórios em branco",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ]
+            },
+            "description": "Campos presentes, mas vazios, também devem ser recusados.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"\",\n  \"email\": \"\",\n  \"password\": \"\",\n  \"administrador\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 400', () => pm.response.to.have.status(400))",
+                  "pm.test('Recusa nome em branco', () => pm.expect(body.nome).to.eql('nome não pode ficar em branco'))",
+                  "pm.test('Recusa email em branco', () => pm.expect(body.email).to.eql('email não pode ficar em branco'))",
+                  "pm.test('Recusa password em branco', () => pm.expect(body.password).to.eql('password não pode ficar em branco'))",
+                  "pm.test('Recusa administrador em branco', () => pm.expect(body.administrador).to.eql(\"administrador deve ser 'true' ou 'false'\"))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Não cadastrar usuário com tipos de dados inválidos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ]
+            },
+            "description": "Os 4 campos são do tipo string: número e booleano devem ser recusados, inclusive administrador true (booleano) no lugar de \"true\" (string).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": 123,\n  \"email\": 123,\n  \"password\": 123,\n  \"administrador\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 400', () => pm.response.to.have.status(400))",
+                  "pm.test('Recusa nome numérico', () => pm.expect(body.nome).to.eql('nome deve ser uma string'))",
+                  "pm.test('Recusa email numérico', () => pm.expect(body.email).to.eql('email deve ser uma string'))",
+                  "pm.test('Recusa password numérico', () => pm.expect(body.password).to.eql('password deve ser uma string'))",
+                  "pm.test('Recusa administrador booleano', () => pm.expect(body.administrador).to.eql(\"administrador deve ser 'true' ou 'false'\"))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Não cadastrar usuário com e-mail em formato inválido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ]
+            },
+            "description": "Validação de formato do campo email.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"QA Formato\",\n  \"email\": \"email-invalido\",\n  \"password\": \"Senha@123\",\n  \"administrador\": \"false\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 400', () => pm.response.to.have.status(400))",
+                  "pm.test('Informa que o e-mail é inválido', () => pm.expect(body.email).to.eql('email deve ser um email válido'))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Não cadastrar usuário com administrador diferente de true ou false",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ]
+            },
+            "description": "O campo administrador é string e só aceita 'true' ou 'false'.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"QA Admin Invalido\",\n  \"email\": \"{{emailUnico}}\",\n  \"password\": \"Senha@123\",\n  \"administrador\": \"sim\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// E-mail único: se a validação falhar, o cadastro indevido não conflita com outras execuções",
+                  "pm.variables.set('emailUnico', `qa.negativo.${Date.now()}@example.com`)"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 400', () => pm.response.to.have.status(400))",
+                  "pm.test(\"Informa que administrador deve ser 'true' ou 'false'\", () => pm.expect(body.administrador).to.eql(\"administrador deve ser 'true' ou 'false'\"))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Não permitir definir o _id no cadastro",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ]
+            },
+            "description": "Proteção contra mass assignment: o _id é gerado pela API e não pode ser enviado pelo cliente.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"QA Mass Assignment\",\n  \"email\": \"{{emailUnico}}\",\n  \"password\": \"Senha@123\",\n  \"administrador\": \"false\",\n  \"_id\": \"aaaaaaaaaaaaaaaa\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// E-mail único: se a validação falhar, o cadastro indevido não conflita com outras execuções",
+                  "pm.variables.set('emailUnico', `qa.negativo.${Date.now()}@example.com`)"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 400', () => pm.response.to.have.status(400))",
+                  "pm.test('Recusa o campo _id', () => pm.expect(body._id).to.eql('_id não é permitido'))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Não cadastrar usuário com JSON malformado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ]
+            },
+            "description": "Corpo com sintaxe JSON inválida (valor sem aspas) deve ser recusado com 400, sem erro interno.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": QA sem aspas\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400))",
+                  "pm.test('Informa que o JSON é inválido', () => pm.expect(pm.response.json().message).to.include('Adicione aspas em todos os valores'))"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Limpeza",
+      "description": "Remove tudo o que foi criado durante a execução, mesmo que algum teste anterior tenha falhado.",
+      "item": [
+        {
+          "name": "Excluir usuário comum",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/{{user2Id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{user2Id}}"
+              ]
+            },
+            "description": "Usuário não administrador cadastrado na pasta POST /usuarios."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200))",
+                  "pm.test('Registro excluído', () => pm.expect(pm.response.json().message).to.eql('Registro excluído com sucesso'))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Excluir usuário administrador",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{userId}}"
+              ]
+            },
+            "description": "Usuário principal da coleção, cadastrado na pasta POST /usuarios."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200))",
+                  "pm.test('Registro excluído', () => pm.expect(pm.response.json().message).to.eql('Registro excluído com sucesso'))"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "userName",
+      "value": ""
+    },
+    {
+      "key": "userEmail",
+      "value": ""
+    },
+    {
+      "key": "userPassword",
+      "value": ""
+    },
+    {
+      "key": "user2Id",
+      "value": ""
+    },
+    {
+      "key": "user2Name",
+      "value": ""
+    },
+    {
+      "key": "user2Email",
+      "value": ""
+    },
+    {
+      "key": "user2Password",
+      "value": ""
+    }
+  ]
+}
