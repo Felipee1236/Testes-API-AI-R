@@ -60,7 +60,8 @@ environments/
 ├── serverest.postman_environment.json           # URL da API pública
 └── local.postman_environment.json               # URL do ServeRest local
 .github/
-└── workflows/api.yml                            # pipeline de CI
+├── workflows/api.yml                            # pipeline de CI
+└── dependabot.yml                               # atualização de dependências
 reports/                                         # relatórios gerados (fora do Git)
 ```
 
@@ -246,6 +247,7 @@ Boas práticas aplicadas:
 - permissão mínima para o token da pipeline (`contents: read`)
 - limite de 10 minutos por job
 - cancelamento automático de execuções antigas da mesma branch
+- Dependabot mantendo atualizadas as dependências npm e as actions
 
 ## Autor
 
