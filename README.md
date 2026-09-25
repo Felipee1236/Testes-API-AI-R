@@ -197,13 +197,13 @@ Uma execução completa faz 48 chamadas HTTP: as 44 requisições da coleção e
 
 Se a API responder **HTTP 429** (limite excedido), uma verificação da coleção falha com uma mensagem explicando o motivo, em vez de deixar só uma sequência de falhas sem causa aparente.
 
-O limite não é testado ativamente, porque isso exige disparar mais de 100 requisições em um minuto. Na API pública, seria um teste de carga em ambiente compartilhado, que o ServeRest proíbe e bloqueia. A instância pública também tem um limite próprio: no código do ServeRest 3.2.2, são 300 requisições a cada 30 segundos por IP. Esse teste fica para um ambiente dedicado.
+O limite não é testado ativamente, porque isso exige disparar mais de 100 requisições em um minuto. Na API pública, seria um teste de carga em ambiente compartilhado, que o ServeRest proíbe e bloqueia. A instância pública também tem um limite próprio: no código do ServeRest 3.2.2, são 300 requisições a cada 30 segundos por IP. Esse teste fica para um ambiente dedicado (veja [Melhorias futuras](#melhorias-futuras)).
 
 ### Dois ambientes: local e público
 
-Os testes rodam em dois ambientes, definidos em `environments/`, e só a variável `baseUrl` muda:
+A mesma coleção roda em dois ambientes, e só a variável `baseUrl` muda:
 
-- **Local** (`http://localhost:3000`): ServeRest 3.2.2 rodando na própria máquina ou em container, com dados isolados e sem depender de rede externa. Uma falha aqui indica problema nos testes ou na API, nunca instabilidade de terceiros.
+- **Local** (`http://localhost:3000`): ServeRest 3.2.2 em container, com dados isolados e sem depender de rede externa. Uma falha aqui indica problema nos testes ou na API, nunca instabilidade de terceiros.
 - **Público** (`https://serverest.dev`): a API sugerida no desafio, compartilhada com outros usuários.
 
 ### Massa de dados independente
@@ -248,6 +248,27 @@ Boas práticas aplicadas:
 - limite de 10 minutos por job
 - cancelamento automático de execuções antigas da mesma branch
 - Dependabot mantendo atualizadas as dependências npm e as actions
+
+## Achados sobre a API
+
+A coleção valida o comportamento documentado da API. Durante os testes, no entanto, foram encontrados comportamentos que seriam defeitos ou riscos em um sistema real, principalmente no contexto bancário. Eles ficam registrados aqui, e não como testes automatizados. Um teste que tratasse o defeito como esperado o esconderia, e um teste que exigisse a correção manteria a pipeline sempre vermelha. Em um projeto real, cada achado viraria um bug, e o teste entraria junto com a correção.
+
+| # | Achado | Risco | Recomendação |
+| --- | --- | --- | --- |
+| 1 | `GET /usuarios` e `GET /usuarios/{id}` retornam a senha em texto puro, e a listagem aceita filtrar por senha | Exposição de dados sensíveis ([OWASP API3:2023](https://owasp.org/API-Security/editions/2023/en/0xa3-broken-object-property-level-authorization/)) | Nunca retornar a senha e armazená-la com hash (bcrypt ou Argon2) |
+| 2 | O payload do JWT contém a senha do usuário em texto puro, legível por qualquer um que tenha o token | Vazamento de credencial | Colocar no token apenas o identificador do usuário e as claims necessárias |
+| 3 | As rotas de usuários não exigem autenticação: qualquer pessoa cadastra um administrador, altera ou exclui usuários | Falha de autorização por função ([OWASP API5:2023](https://owasp.org/API-Security/editions/2023/en/0xa5-broken-function-level-authorization/)) | Exigir token nas rotas de usuários e perfil de administrador para cadastrar administradores |
+| 4 | O mesmo e-mail com letras maiúsculas é aceito como novo usuário (`QA@example.com` e `qa@example.com`) | Contas duplicadas para a mesma pessoa | Normalizar o e-mail (minúsculas) antes de verificar a unicidade |
+| 5 | `PUT` e `DELETE` não validam o formato do id, ao contrário do `GET`: `PUT /usuarios/123` cadastra um usuário e `DELETE /usuarios/123` retorna 200 | Comportamento inconsistente entre os métodos | Aplicar a mesma validação de id em todas as rotas |
+| 6 | Recurso inexistente retorna 400 no `GET` e 200 no `DELETE`, em vez de 404 | Clientes não distinguem erro de validação de recurso inexistente | Retornar 404 para recurso inexistente |
+
+## Melhorias futuras
+
+- Teste do limite de requisições em ambiente dedicado (por exemplo, com k6), validando o 429 e o header `Retry-After`
+- Testes de contrato para as demais rotas (produtos e carrinhos)
+- Execução com massa de dados externa (`newman -d`), variando os dados de cadastro por iteração
+- Execução agendada da pipeline (`schedule`) como monitoramento da API pública
+- Resumo dos resultados na própria página da execução (job summary)
 
 ## Autor
 
