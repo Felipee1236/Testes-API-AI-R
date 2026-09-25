@@ -539,6 +539,362 @@
       ]
     },
     {
+      "name": "GET /usuarios",
+      "description": "Listagem de usuários: contrato, os 5 filtros documentados e validação dos parâmetros de consulta.",
+      "item": [
+        {
+          "name": "Listar todos os usuários",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ]
+            },
+            "description": "Valida o contrato da listagem, a consistência entre quantidade e itens e a presença dos usuários cadastrados nesta execução."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "const schemaUsuario = JSON.parse(pm.collectionVariables.get('schemaUsuario'))",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200))",
+                  "pm.test('Segue o contrato da listagem', () => {",
+                  "  pm.response.to.have.jsonSchema({",
+                  "    type: 'object',",
+                  "    additionalProperties: false,",
+                  "    required: ['quantidade', 'usuarios'],",
+                  "    properties: {",
+                  "      quantidade: { type: 'integer', minimum: 0 },",
+                  "      usuarios: { type: 'array', items: schemaUsuario },",
+                  "    },",
+                  "  })",
+                  "})",
+                  "pm.test('Quantidade corresponde ao total de itens', () => pm.expect(body.quantidade).to.eql(body.usuarios.length))",
+                  "pm.test('Inclui os usuários cadastrados nesta execução', () => {",
+                  "  const ids = body.usuarios.map(usuario => usuario._id)",
+                  "  pm.expect(ids).to.include.members([pm.collectionVariables.get('userId'), pm.collectionVariables.get('user2Id')])",
+                  "})"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filtrar usuários por e-mail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios?email={{userEmail}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ],
+              "query": [
+                {
+                  "key": "email",
+                  "value": "{{userEmail}}"
+                }
+              ]
+            },
+            "description": "O filtro por e-mail deve retornar exatamente o usuário cadastrado nesta execução."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200))",
+                  "pm.test('Retorna exatamente 1 usuário', () => pm.expect(body.quantidade).to.eql(1))",
+                  "pm.test('Retorna o usuário cadastrado', () => pm.expect(body.usuarios[0]._id).to.eql(pm.collectionVariables.get('userId')))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filtrar usuários por parte do nome, sem diferenciar maiúsculas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios?nome={{nomeParcial}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ],
+              "query": [
+                {
+                  "key": "nome",
+                  "value": "{{nomeParcial}}"
+                }
+              ]
+            },
+            "description": "O filtro por nome faz busca parcial e ignora maiúsculas e minúsculas."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Parte do nome, em minúsculas: \"QA Admin 123\" vira \"admin 123\"",
+                  "pm.variables.set('nomeParcial', pm.collectionVariables.get('userName').replace('QA ', '').toLowerCase())"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200))",
+                  "pm.test('Retorna exatamente 1 usuário', () => pm.expect(body.quantidade).to.eql(1))",
+                  "pm.test('Retorna o usuário cadastrado', () => pm.expect(body.usuarios[0]._id).to.eql(pm.collectionVariables.get('userId')))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filtrar usuários não administradores",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios?administrador=false",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ],
+              "query": [
+                {
+                  "key": "administrador",
+                  "value": "false"
+                }
+              ]
+            },
+            "description": "O filtro administrador=false deve retornar apenas usuários comuns."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "const ids = body.usuarios.map(usuario => usuario._id)",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200))",
+                  "pm.test('Todos os usuários retornados são não administradores', () => {",
+                  "  pm.expect(body.usuarios.every(usuario => usuario.administrador === 'false')).to.be.true",
+                  "})",
+                  "pm.test('Inclui o usuário comum desta execução', () => pm.expect(ids).to.include(pm.collectionVariables.get('user2Id')))",
+                  "pm.test('Não inclui o administrador desta execução', () => pm.expect(ids).to.not.include(pm.collectionVariables.get('userId')))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Combinar todos os filtros disponíveis",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios?_id={{userId}}&nome={{userName}}&email={{userEmail}}&password={{userPassword}}&administrador=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ],
+              "query": [
+                {
+                  "key": "_id",
+                  "value": "{{userId}}"
+                },
+                {
+                  "key": "nome",
+                  "value": "{{userName}}"
+                },
+                {
+                  "key": "email",
+                  "value": "{{userEmail}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{userPassword}}"
+                },
+                {
+                  "key": "administrador",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Usa os 5 filtros documentados ao mesmo tempo (_id, nome, email, password e administrador): o resultado deve ser exatamente o usuário cadastrado."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200))",
+                  "pm.test('Retorna exatamente 1 usuário', () => pm.expect(body.quantidade).to.eql(1))",
+                  "pm.test('Retorna o usuário cadastrado', () => pm.expect(body.usuarios[0]._id).to.eql(pm.collectionVariables.get('userId')))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filtro sem correspondência retorna lista vazia",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios?email={{userEmail}}&administrador=false",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ],
+              "query": [
+                {
+                  "key": "email",
+                  "value": "{{userEmail}}"
+                },
+                {
+                  "key": "administrador",
+                  "value": "false"
+                }
+              ]
+            },
+            "description": "O administrador desta execução não atende ao filtro administrador=false: a resposta é 200 com lista vazia."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200))",
+                  "pm.test('Quantidade igual a zero', () => pm.expect(body.quantidade).to.eql(0))",
+                  "pm.test('Lista de usuários vazia', () => pm.expect(body.usuarios).to.eql([]))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rejeitar filtros com valores inválidos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios?email=email-invalido&administrador=sim",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ],
+              "query": [
+                {
+                  "key": "email",
+                  "value": "email-invalido"
+                },
+                {
+                  "key": "administrador",
+                  "value": "sim"
+                }
+              ]
+            },
+            "description": "Os parâmetros de consulta passam pela mesma validação do cadastro: e-mail em formato inválido e administrador fora de true/false retornam 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 400', () => pm.response.to.have.status(400))",
+                  "pm.test('Informa que o e-mail é inválido', () => pm.expect(body.email).to.eql('email deve ser um email válido'))",
+                  "pm.test(\"Informa que administrador deve ser 'true' ou 'false'\", () => pm.expect(body.administrador).to.eql(\"administrador deve ser 'true' ou 'false'\"))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rejeitar parâmetro de filtro não previsto",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios?cpf=12345678900",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios"
+              ],
+              "query": [
+                {
+                  "key": "cpf",
+                  "value": "12345678900"
+                }
+              ]
+            },
+            "description": "Somente os 5 filtros documentados são aceitos."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 400', () => pm.response.to.have.status(400))",
+                  "pm.test('Informa que o parâmetro não é permitido', () => pm.expect(body.cpf).to.eql('cpf não é permitido'))"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Limpeza",
       "description": "Remove tudo o que foi criado durante a execução, mesmo que algum teste anterior tenha falhado.",
       "item": [
@@ -637,6 +993,11 @@
     {
       "key": "user2Password",
       "value": ""
+    },
+    {
+      "key": "schemaUsuario",
+      "value": "{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"nome\",\"email\",\"password\",\"administrador\",\"_id\"],\"properties\":{\"nome\":{\"type\":\"string\"},\"email\":{\"type\":\"string\"},\"password\":{\"type\":\"string\"},\"administrador\":{\"type\":\"string\",\"enum\":[\"true\",\"false\"]},\"_id\":{\"type\":\"string\",\"pattern\":\"^[A-Za-z0-9]{16}$\"}}}",
+      "description": "JSON Schema de um usuário, usado nos testes de contrato."
     }
   ]
 }

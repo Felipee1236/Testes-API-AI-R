@@ -66,7 +66,7 @@ reports/                                         # relatórios gerados (fora do 
 
 ## Casos de teste
 
-As pastas da coleção seguem o ciclo de vida do usuário: cadastro e limpeza. Além das verificações de cada caso, **todas** as requisições verificam que o tempo de resposta fica abaixo de 3 segundos e que a resposta é JSON.
+As pastas da coleção seguem o ciclo de vida do usuário: cadastro, consulta e limpeza. Além das verificações de cada caso, **todas** as requisições verificam que o tempo de resposta fica abaixo de 3 segundos e que a resposta é JSON.
 
 ### `POST /usuarios`: cadastro
 
@@ -82,6 +82,19 @@ As pastas da coleção seguem o ciclo de vida do usuário: cadastro e limpeza. A
 | CT08 | `administrador` diferente de `"true"`/`"false"` | 400, "administrador deve ser 'true' ou 'false'" |
 | CT09 | Envio de `_id` no corpo (mass assignment) | 400, "_id não é permitido" |
 | CT10 | JSON malformado | 400 com mensagem da API, sem erro interno |
+
+### `GET /usuarios`: listagem
+
+| ID | Cenário | Resultado esperado |
+| --- | --- | --- |
+| CT11 | Listar todos | 200, contrato validado com JSON Schema, `quantidade` igual ao total de itens e usuários da execução presentes |
+| CT12 | Filtrar por e-mail | Exatamente o usuário cadastrado |
+| CT13 | Filtrar por parte do nome, em minúsculas | Exatamente o usuário cadastrado (busca parcial e sem diferenciar maiúsculas) |
+| CT14 | Filtrar por `administrador=false` | Apenas usuários comuns: inclui o comum e não o administrador da execução |
+| CT15 | Combinar os 5 filtros (`_id`, `nome`, `email`, `password`, `administrador`) | Exatamente o usuário cadastrado |
+| CT16 | Filtro sem correspondência | 200, `quantidade` 0 e lista vazia |
+| CT17 | Filtros com valores inválidos (e-mail e administrador) | 400, mensagem para cada parâmetro |
+| CT18 | Parâmetro de filtro não previsto | 400, "cpf não é permitido" |
 
 A pasta **Limpeza** remove, ao final, o usuário comum e o administrador. Ela também tem verificações, para que um resíduo na API nunca passe despercebido.
 
@@ -109,6 +122,10 @@ Os testes rodam em dois ambientes, definidos em `environments/`, e só a variáv
 ### Massa de dados independente
 
 Não existe usuário fixo. Cada execução cadastra os próprios usuários, com e-mail único no domínio reservado `example.com` ([RFC 2606](https://www.rfc-editor.org/rfc/rfc2606)), e a pasta **Limpeza** remove tudo o que foi criado. O Newman continua a execução mesmo quando um teste falha, então a limpeza sempre roda. Dados usados em uma única requisição ficam em variáveis locais; só o que é compartilhado entre requisições (ids e credenciais) fica em variáveis da coleção.
+
+### Contrato com JSON Schema
+
+O schema do usuário fica em uma variável da coleção (`schemaUsuario`) e é usado na validação da listagem. Ele não aceita campos além dos documentados (`additionalProperties: false`), para que um campo novo na resposta, como um dado sensível exposto por engano, seja detectado.
 
 ### Dados sensíveis
 
