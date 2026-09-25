@@ -1006,6 +1006,344 @@
       ]
     },
     {
+      "name": "PUT /usuarios/{id}",
+      "description": "Alteração de usuário, incluindo o comportamento de cadastro quando o id não existe.",
+      "item": [
+        {
+          "name": "Alterar usuário existente",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{userId}}"
+              ]
+            },
+            "description": "Altera nome e senha e confirma, com uma nova consulta, que todos os campos foram gravados.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"{{userName}}\",\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{userPassword}}\",\n  \"administrador\": \"true\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Novos valores de nome e senha; e-mail e perfil continuam os mesmos",
+                  "const sufixo = `${Date.now()}${Math.floor(Math.random() * 1000)}`",
+                  "pm.collectionVariables.set('userName', `QA Admin Alterado ${sufixo}`)",
+                  "pm.collectionVariables.set('userPassword', `NovaSenha@${sufixo}`)"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200))",
+                  "pm.test('Mensagem de alteração realizada', () => pm.expect(body.message).to.eql('Registro alterado com sucesso'))",
+                  "",
+                  "// Consulta o usuário para confirmar que a alteração foi gravada",
+                  "pm.sendRequest(`${pm.variables.get('baseUrl')}/usuarios/${pm.collectionVariables.get('userId')}`, (erro, resposta) => {",
+                  "  pm.test('Alteração persistida', () => {",
+                  "    if (erro) throw erro",
+                  "    pm.expect(resposta.json()).to.eql({",
+                  "      nome: pm.collectionVariables.get('userName'),",
+                  "      email: pm.collectionVariables.get('userEmail'),",
+                  "      password: pm.collectionVariables.get('userPassword'),",
+                  "      administrador: 'true',",
+                  "      _id: pm.collectionVariables.get('userId'),",
+                  "    })",
+                  "  })",
+                  "})"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Não alterar usuário para um e-mail já usado por outro",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{userId}}"
+              ]
+            },
+            "description": "Tenta trocar o e-mail do administrador pelo e-mail do usuário comum.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"{{userName}}\",\n  \"email\": \"{{user2Email}}\",\n  \"password\": \"{{userPassword}}\",\n  \"administrador\": \"true\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 400', () => pm.response.to.have.status(400))",
+                  "pm.test('Informa que o e-mail já está em uso', () => pm.expect(body.message).to.eql('Este email já está sendo usado'))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Não alterar usuário sem os campos obrigatórios",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{userId}}"
+              ]
+            },
+            "description": "Envia corpo vazio e valida a mensagem de cada campo obrigatório.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 400', () => pm.response.to.have.status(400))",
+                  "pm.test('Informa que nome é obrigatório', () => pm.expect(body.nome).to.eql('nome é obrigatório'))",
+                  "pm.test('Informa que email é obrigatório', () => pm.expect(body.email).to.eql('email é obrigatório'))",
+                  "pm.test('Informa que password é obrigatório', () => pm.expect(body.password).to.eql('password é obrigatório'))",
+                  "pm.test('Informa que administrador é obrigatório', () => pm.expect(body.administrador).to.eql('administrador é obrigatório'))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Não alterar usuário com dados inválidos",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{userId}}"
+              ]
+            },
+            "description": "A alteração aplica as mesmas validações do cadastro.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"{{userName}}\",\n  \"email\": \"email-invalido\",\n  \"password\": \"{{userPassword}}\",\n  \"administrador\": \"sim\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 400', () => pm.response.to.have.status(400))",
+                  "pm.test('Informa que o e-mail é inválido', () => pm.expect(body.email).to.eql('email deve ser um email válido'))",
+                  "pm.test(\"Informa que administrador deve ser 'true' ou 'false'\", () => pm.expect(body.administrador).to.eql(\"administrador deve ser 'true' ou 'false'\"))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cadastrar usuário ao alterar id inexistente",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/bbbbbbbbbbbbbbbb",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "bbbbbbbbbbbbbbbb"
+              ]
+            },
+            "description": "Regra documentada da API: se o id não existe, o PUT cadastra um novo usuário e retorna 201 com o _id gerado.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"{{upsertUserName}}\",\n  \"email\": \"{{upsertUserEmail}}\",\n  \"password\": \"Senha@123\",\n  \"administrador\": \"false\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const sufixo = `${Date.now()}${Math.floor(Math.random() * 1000)}`",
+                  "pm.collectionVariables.set('upsertUserName', `QA Upsert ${sufixo}`)",
+                  "pm.collectionVariables.set('upsertUserEmail', `qa.upsert.${sufixo}@example.com`)"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201))",
+                  "pm.test('Mensagem de cadastro realizado', () => pm.expect(body.message).to.eql('Cadastro realizado com sucesso'))",
+                  "pm.test('Retorna _id com 16 caracteres alfanuméricos', () => pm.expect(body._id).to.match(/^[A-Za-z0-9]{16}$/))",
+                  "",
+                  "pm.collectionVariables.set('upsertUserId', body._id)",
+                  "",
+                  "// Consulta o novo usuário para confirmar que o cadastro foi gravado",
+                  "pm.sendRequest(`${pm.variables.get('baseUrl')}/usuarios/${body._id}`, (erro, resposta) => {",
+                  "  pm.test('Usuário cadastrado pelo PUT pode ser consultado', () => {",
+                  "    if (erro) throw erro",
+                  "    pm.expect(resposta.code).to.eql(200)",
+                  "    pm.expect(resposta.json()).to.include({",
+                  "      nome: pm.collectionVariables.get('upsertUserName'),",
+                  "      email: pm.collectionVariables.get('upsertUserEmail'),",
+                  "    })",
+                  "  })",
+                  "})"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Não cadastrar pelo PUT com e-mail já existente",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/cccccccccccccccc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "cccccccccccccccc"
+              ]
+            },
+            "description": "Mesmo no cadastro feito pelo PUT (id inexistente), o e-mail precisa ser único.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"QA Upsert Duplicado\",\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"Senha@123\",\n  \"administrador\": \"false\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json()",
+                  "",
+                  "pm.test('Status 400', () => pm.response.to.have.status(400))",
+                  "pm.test('Informa que o e-mail já está em uso', () => pm.expect(body.message).to.eql('Este email já está sendo usado'))"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Limpeza",
       "description": "Remove tudo o que foi criado durante a execução, mesmo que algum teste anterior tenha falhado.",
       "item": [
@@ -1025,6 +1363,36 @@
               ]
             },
             "description": "Usuário não administrador cadastrado na pasta POST /usuarios."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200))",
+                  "pm.test('Registro excluído', () => pm.expect(pm.response.json().message).to.eql('Registro excluído com sucesso'))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Excluir usuário criado pelo PUT",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/usuarios/{{upsertUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{upsertUserId}}"
+              ]
+            },
+            "description": "Usuário cadastrado no teste de PUT com id inexistente."
           },
           "event": [
             {
@@ -1103,6 +1471,18 @@
     },
     {
       "key": "user2Password",
+      "value": ""
+    },
+    {
+      "key": "upsertUserId",
+      "value": ""
+    },
+    {
+      "key": "upsertUserName",
+      "value": ""
+    },
+    {
+      "key": "upsertUserEmail",
       "value": ""
     },
     {

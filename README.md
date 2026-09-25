@@ -66,7 +66,7 @@ reports/                                         # relatórios gerados (fora do 
 
 ## Casos de teste
 
-As pastas da coleção seguem o ciclo de vida do usuário: cadastro, consulta e limpeza. Além das verificações de cada caso, **todas** as requisições verificam que o tempo de resposta fica abaixo de 3 segundos e que a resposta é JSON.
+As pastas da coleção seguem o ciclo de vida do usuário: cadastro, consulta, alteração e limpeza. Além das verificações de cada caso, **todas** as requisições verificam que o tempo de resposta fica abaixo de 3 segundos e que a resposta é JSON.
 
 ### `POST /usuarios`: cadastro
 
@@ -104,7 +104,18 @@ As pastas da coleção seguem o ciclo de vida do usuário: cadastro, consulta e 
 | CT20 | Id inexistente, em formato válido | 400, "Usuário não encontrado" |
 | CT21 | Id fora do formato de 16 caracteres alfanuméricos | 400, mensagem com o formato esperado |
 
-A pasta **Limpeza** remove, ao final, o usuário comum e o administrador. Ela também tem verificações, para que um resíduo na API nunca passe despercebido.
+### `PUT /usuarios/{id}`: alteração
+
+| ID | Cenário | Resultado esperado |
+| --- | --- | --- |
+| CT22 | Alterar nome e senha | 200 e nova consulta confirmando todos os campos gravados |
+| CT23 | Trocar o e-mail pelo de outro usuário | 400, "Este email já está sendo usado" |
+| CT24 | Corpo vazio | 400, mensagem para cada campo obrigatório |
+| CT25 | E-mail e administrador inválidos | 400, mensagem para cada campo |
+| CT26 | Id inexistente | 201: a API cadastra um novo usuário, confirmado por consulta |
+| CT27 | Id inexistente com e-mail já cadastrado | 400, "Este email já está sendo usado" |
+
+A pasta **Limpeza** remove, ao final, o usuário comum, o usuário criado pelo PUT e o administrador. Ela também tem verificações, para que um resíduo na API nunca passe despercebido.
 
 ## Decisões técnicas
 
@@ -130,6 +141,10 @@ Os testes rodam em dois ambientes, definidos em `environments/`, e só a variáv
 ### Massa de dados independente
 
 Não existe usuário fixo. Cada execução cadastra os próprios usuários, com e-mail único no domínio reservado `example.com` ([RFC 2606](https://www.rfc-editor.org/rfc/rfc2606)), e a pasta **Limpeza** remove tudo o que foi criado. O Newman continua a execução mesmo quando um teste falha, então a limpeza sempre roda. Dados usados em uma única requisição ficam em variáveis locais; só o que é compartilhado entre requisições (ids e credenciais) fica em variáveis da coleção.
+
+### Comportamento de "upsert" no PUT
+
+Pela documentação da API, um `PUT` com id inexistente cadastra um novo usuário em vez de retornar erro. Esse comportamento é testado explicitamente (CT26 e CT27), e o usuário criado é removido na limpeza.
 
 ### Contrato com JSON Schema
 
